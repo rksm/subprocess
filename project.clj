@@ -1,4 +1,4 @@
-(defproject rksm/subprocess "0.1.0-SNAPSHOT"
+(defproject rksm/subprocess "0.1.0"
   :description "Spawn subprocesses and listen to stdout and stderr via core.async."
   :url "https://github.com/rksm/subprocess"
   :license {:name "Eclipse Public License"
