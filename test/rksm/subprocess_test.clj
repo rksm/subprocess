@@ -5,10 +5,10 @@
 
 (deftest proc-test
   (testing "Run a simple process asynchronously"
-    (let [cmd "echo 1; sleep 1; echo 2; sleep 1; echo 3"
-          p (proc/async-proc "bash" "-c" cmd)]
+    (let [cmd "echo 1; sleep .1; echo 2; sleep .1; echo 3"
+          p (subp/async-proc "bash" "-c" cmd)]
       (is (= "1" (async/<!! (:out @p))))
-      (Thread/sleep 1200)
+      (Thread/sleep 120)
       (is (= "2" (async/<!! (:out @p))))
-      (Thread/sleep 1100)
+      (Thread/sleep 120)
       (is (= true (:exited? @p))))))

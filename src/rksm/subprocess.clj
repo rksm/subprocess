@@ -20,42 +20,17 @@
         out (capture-stream (.getInputStream proc))
         err (capture-stream (.getErrorStream proc))
         proc-state (atom {:out out :err err :proc proc :exited false})]
-    (future (.waitFor proc) (swap! proc-state assoc :exited? true) (println "done"))
+    (future (.waitFor proc) (swap! proc-state assoc :exited? true))
     proc-state))
 
 
 (comment
 
   (async-proc "echo" "123")
-  (def x (async-proc "bash" "-c" "echo 1; sleep 3; echo 2; sleep 2; echo 3"))
 
-  (async/<!! (:out @x))
-  (.. (:proc x) hasExited)
-  (.exitcode (:proc x))
-  
-  ;; -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-  (require '[clojure.string :as s])
-  (require '[clojure.java.io :as io])
-  
-  (some-> (sh "mdfind" "-name" "chrome" "-onlyin" "/Applications/")
-          :out
-          s/split-lines
-          first
-          (io/file "Contents/MacOS/Google Chrome")
-          (#(when (.exists %) %))
-          .getPath)
-  
-  ;; -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
-
-  (require '[cemerick.pomegranate])
-  (cemerick.pomegranate/add-dependencies
-   :coordinates '[[lein-cljsbuild "1.0.4-SNAPSHOT"]]
-   :repositories (merge cemerick.pomegranate.aether/maven-central {"clojars" "http://clojars.org/repo"}))
-
-
-  (cemerick.pomegranate/add-classpath "/Users/robert/.m2/repository/lein-cljsbuild/lein-cljsbuild/1.0.4-SNAPSHOT/lein-cljsbuild-1.0.4-SNAPSHOT.jar")
-  
-  (cemerick.pomegranate/add-classpath "/Users/robert/Dropbox/Projects/clojure/lein-cljsbuild/support/src")
-
+  (let [proc (async-proc "bash" "-c" "echo 1; sleep .3; echo 2; sleep .3; echo 3")]
+    (future
+      (while (not (:exited? @proc))
+        (println "Got output" (async/<!! (:out @proc))))
+      (println "process exited")))
   )
