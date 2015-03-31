@@ -18,9 +18,8 @@
     (let [cmd "echo 1; sleep .1; echo 2; sleep .1; echo 3"
           p (subp/async-proc "bash" "-c" cmd)]
       (is (= "1" (async/<!! (:out @p))))
-      (Thread/sleep 20)
       (subp/signal p)
-      (is (= true (subp/exited? p))))))
+      (is (subp/exited? p)))))
 
 (comment
   (run-tests *ns*)

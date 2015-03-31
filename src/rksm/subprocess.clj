@@ -1,17 +1,19 @@
 (ns rksm.subprocess
-  (:require [clojure.core.async :as async]
+  (:require [clojure.core.async
+             :as async
+             :refer [go go-loop chan <! >! <!! >!! alt!! timeout close! put!]]
             [clojure.java.io :as io]))
 
 (defn capture-stream
   [stream]
   (let [reader (io/reader stream)
-        read-chan (async/chan)]
-    (async/go-loop []
+        read-chan (chan)]
+    (go-loop []
       (if-let [line (.readLine reader)]
         (do
-          (async/put! read-chan line)
+          (put! read-chan line)
           (recur))
-        (async/close! read-chan)))
+        (close! read-chan)))
     read-chan))
 
 (defn async-proc
@@ -26,24 +28,27 @@
 (defn process-obj [proc]
   (:proc @proc))
 
-(defn pid [proc]
-  ;; seriously? Java has no way of official getting a pid of a process???
+(defn- get-field
+  [proc field-name]
   (let [p (process-obj proc)]
-    (if-let [pid-field (.getDeclaredField (class p) (name "pid"))]
+    (if-let [pid-field (.getDeclaredField (class p) (name field-name))]
       (-> pid-field
-          (doto (.setAccessible true))
-          (.get p)))))
+        (doto (.setAccessible true))
+        (.get p)))))
 
-(defn exited? [proc]
-  (:exited? @proc))
+(defn pid
+  "seriously? Java has no way of official getting a pid of a process???"
+  [proc]
+  (get-field proc "pid"))
 
-(defn exit-code [proc]
-  (:code @proc))
+(defn exited? [proc] (:exited? @proc))
+
+(defn exit-code [proc] (get-field proc "exitcode"))
 
 (defn- read-chan [proc chan-name]
   (loop [val ""]
     (if val
-      (recur (str val (async/<!!(chan-name @proc))))
+      (recur (str val (<!! (chan-name @proc))))
       val)))
 
 (defn stdout [proc]
@@ -53,18 +58,19 @@
   (read-chan proc :err))
 
 (defn signal
-  ([proc] (signal proc "SIGTERM"))
+  ([proc] (signal proc "KILL"))
   ([proc sig]
-     (print "signaling... " "kill" "-s" sig (pid proc))
-     (if (exited? proc)
-       (exit-code proc)
-       (if-let [proc-id (pid proc)]
-         (let [kill-proc (async-proc "kill" (format "-s %s %s" sig proc-id))]
-           (println "signaling... " "kill" "-s" sig proc-id)
-           (println "signaling... " (process-obj kill-proc))
-           (.waitFor (process-obj kill-proc))
-           (exit-code proc))
-         (-> (format "cannot kill process %s" proc) Exception. throw)))))
+   (if (exited? proc)
+     (exit-code proc)
+     (let [kill-proc (.exec (java.lang.Runtime/getRuntime)
+                            (format "kill -s %s %s" sig (pid proc)))
+           exit-chan (chan)]
+       (async/go
+        (.waitFor (process-obj proc))
+        (>! exit-chan (or (exit-code proc) :exited)))
+       (alt!!
+        (timeout 100) :timeout
+        exit-chan ([code] code))))))
 
 (comment
 
