@@ -41,15 +41,19 @@
   [proc]
   (get-field proc "pid"))
 
+(defn wait-for
+  [proc]
+  (.waitFor (process-obj proc)))
+
 (defn exited? [proc] (:exited? @proc))
 
 (defn exit-code [proc] (get-field proc "exitcode"))
 
 (defn- read-chan [proc chan-name]
-  (loop [val ""]
-    (if val
-      (recur (str val (<!! (chan-name @proc))))
-      val)))
+  (loop [result ""]
+    (if-let [val (<!! (chan-name @proc))]
+      (recur (str result "\n" val))
+      result)))
 
 (defn stdout [proc]
   (read-chan proc :out))
