@@ -16,9 +16,21 @@
         (close! read-chan)))
     read-chan))
 
+(defn- ^"[Ljava.lang.String;" as-env-strings
+  "Stolen from clojure.java.shell
+  Helper so that callers can pass a Clojure map for the :env to sh."
+  [arg]
+  (cond
+   (nil? arg) nil
+   (map? arg) (into-array String (map (fn [[k v]] (str (name k) "=" v)) arg))
+   true arg))
+
 (defn async-proc
-  [& cmd+args]
-  (let [proc (.. Runtime getRuntime (exec (into-array String cmd+args)))
+  [& cmd+args+opts]
+  (let [[cmd+args opts] (split-with string? cmd+args+opts)
+        opts (apply hash-map opts)
+        env (as-env-strings (:env opts))
+        proc (.. Runtime getRuntime (exec (into-array String cmd+args) env))
         out (capture-stream (.getInputStream proc))
         err (capture-stream (.getErrorStream proc))
         proc-state (atom {:out out :err err :proc proc :exited? false})]
