@@ -5,13 +5,17 @@
             [clojure.java.io :as io]))
 
 (defn capture-stream
-  [stream]
+  [stream & [verbose?]]
   (let [reader (io/reader stream)
         read-chan (chan)]
     (go-loop []
       (if-let [line (.readLine reader)]
         (do
           (put! read-chan line)
+          (when verbose?
+            (binding [*out* (java.io.PrintWriter. System/out)]
+              (println line)
+              (.flush *out*)))
           (recur))
         (close! read-chan)))
     read-chan))
@@ -26,13 +30,18 @@
    true arg))
 
 (defn async-proc
+  "Function to start a shell process. Pass the command and then optionally
+  arguments and options along, like:
+  (rksm.subprocess/async-proc \"ls\" \"-l\" \"-a\" :verbose? true)
+  options are: verbose?, env"
   [& cmd+args+opts]
   (let [[cmd+args opts] (split-with string? cmd+args+opts)
         opts (apply hash-map opts)
+        verbose? (:verbose? opts)
         env (as-env-strings (:env opts))
         proc (.. Runtime getRuntime (exec (into-array String cmd+args) env))
-        out (capture-stream (.getInputStream proc))
-        err (capture-stream (.getErrorStream proc))
+        out (capture-stream (.getInputStream proc) verbose?)
+        err (capture-stream (.getErrorStream proc) verbose?)
         proc-state (atom {:out out :err err :proc proc :exited? false})]
     (future (.waitFor proc) (swap! proc-state assoc :exited? true))
     proc-state))
